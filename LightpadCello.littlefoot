@@ -1,0 +1,884 @@
+/*
+<metadata description="Cello Controller for Lightpad">
+    <groups>
+
+    </groups>
+    <variables>
+	    <variable name="conf_pressureBoost" displayName="Pressure Boost" type="float" min="0" max="1" value="0.1" />
+	    <variable name="conf_pressureScale" displayName="Pressure Scale" type="float" min="0" max="1" value="0.7" />
+	    <variable name="conf_scaleZoom" displayName="Fingerboard Scale Modifier" type="float" min="0.5" max="1" value="1.0" />
+	    <variable name="conf_vibratoThreshold" displayName="Vibrato Threshold" type="float" min="0" max="0.5" value="0.15" />
+	    <variable name="conf_pitchBendRange" displayName="Pitch Band Range" type="int" min="1" max="48" value="48" />
+    
+	    <variable name="conf_numStrings" displayName="Number of Strings" type="int" min="4" max="5" value="5" />
+
+	    <variable name="conf_fatLowStrings" displayName="Fat Low Strings" type="bool" value="true" />
+
+	    <variable name="conf_stringColor" displayName="String Color" type="colour" value="0x8080FF" />
+        <variable name="conf_stringPlayingColor" displayName="Playing String Color" type="colour" value="0xFFFF00" />
+        <variable name="conf_nutColor" displayName="Nut Color" type="colour" value="0x202040" />
+        <variable name="conf_bowingAreaColor" displayName="Bowing Area Color" type="colour" value="0xFF0000" />
+        <variable name="conf_fbDotColor1" displayName="Fret Dot Color 1" type="colour" value="0x404040" />
+        <variable name="conf_fbDotColor2" displayName="Fret Dot Color 2" type="colour" value="0x808080" />
+        <variable name="conf_fbDotColor3" displayName="Fret Dot Color 3" type="colour" value="0xFFFF00" />
+        <variable name="conf_bowingFingerColor" displayName="Bowing Finger Color" type="colour" value="0xFF8000" />
+        <variable name="conf_stringFingerColor" displayName="String Finger Color" type="colour" value="0x80FFFF" />
+</variables>
+</metadata>
+*/
+
+//
+//  LightpadCello.littlefoot
+//  LightpadCello
+//
+//  Created by Brian Ping-Yao Wang on 1/11/18.
+//  Copyright © 2018 Brian Ping-Yao Wang. All rights reserved.
+//
+
+// GLOBAL DATA STRUCTURES (stored in heap)
+// NOTE: The heap size is 512 bytes.
+
+// touch positions received from all blocks (used only on main block)
+// index: (block_index, touch_base_1_index)
+// fields: isDown, x, y, z per
+int g_blockTouchState_heapAddr;
+int g_blockTouchState_numBlocks;
+int g_blockTouchState_numTouches;
+int g_blockTouchState_heapSizePerUnit;
+int g_blockTouchState_heapAddrOffset_isDown;
+int g_blockTouchState_heapAddrOffset_x;
+int g_blockTouchState_heapAddrOffset_y;
+int g_blockTouchState_heapAddrOffset_z;
+
+int blockTouchStateAddr(int blockIndex, int touchIndex, int offset) {
+    int addrBase = g_blockTouchState_heapAddr;
+    addrBase += blockIndex * g_blockTouchState_numTouches * g_blockTouchState_heapSizePerUnit;
+    addrBase += (touchIndex-1) * g_blockTouchState_heapSizePerUnit;
+    return addrBase + offset;
+}
+
+int getBlockTouchIsDown(int blockIndex, int touchIndex) {
+    return getHeapInt(blockTouchStateAddr(blockIndex, touchIndex, g_blockTouchState_heapAddrOffset_isDown));
+}
+
+int getBlockTouchX(int blockIndex, int touchIndex) {
+    return getHeapInt(blockTouchStateAddr(blockIndex, touchIndex, g_blockTouchState_heapAddrOffset_x));
+}
+
+int getBlockTouchY(int blockIndex, int touchIndex) {
+    return getHeapInt(blockTouchStateAddr(blockIndex, touchIndex, g_blockTouchState_heapAddrOffset_y));
+}
+
+int getBlockTouchZ(int blockIndex, int touchIndex) {
+    return getHeapInt(blockTouchStateAddr(blockIndex, touchIndex, g_blockTouchState_heapAddrOffset_z));
+}
+
+void setBlockTouchIsDown(int blockIndex, int touchIndex, int value) {
+    setHeapInt(blockTouchStateAddr(blockIndex, touchIndex, g_blockTouchState_heapAddrOffset_isDown), value);
+}
+
+void setBlockTouchX(int blockIndex, int touchIndex, int value) {
+    setHeapInt(blockTouchStateAddr(blockIndex, touchIndex, g_blockTouchState_heapAddrOffset_x), value);
+}
+
+void setBlockTouchY(int blockIndex, int touchIndex, int value) {
+    setHeapInt(blockTouchStateAddr(blockIndex, touchIndex, g_blockTouchState_heapAddrOffset_y), value);
+}
+
+void setBlockTouchZ(int blockIndex, int touchIndex, int value) {
+    setHeapInt(blockTouchStateAddr(blockIndex, touchIndex, g_blockTouchState_heapAddrOffset_z), value);
+}
+
+// for drawing strings on each block
+// index: string
+// fields: isDown, drawPos, isPlaying
+int g_stringDrawState_heapAddr;
+int g_stringDrawState_numStrings;
+int g_stringDrawState_heapSizePerUnit;
+int g_stringDrawState_heapAddrOffset_isDown;
+int g_stringDrawState_heapAddrOffset_drawPos;
+int g_stringDrawState_heapAddrOffset_isPlaying;
+
+
+int stringDrawStateAddr(int stringIndex, int offset) {
+    int addrBase = g_stringDrawState_heapAddr;
+    addrBase += stringIndex * g_stringDrawState_heapSizePerUnit;
+    return addrBase + offset;
+}
+
+int getStringIsDown(int stringIndex) {
+    return getHeapInt(stringDrawStateAddr(stringIndex, g_stringDrawState_heapAddrOffset_isDown));
+}
+
+int getStringDrawPos(int stringIndex) {
+    return getHeapInt(stringDrawStateAddr(stringIndex, g_stringDrawState_heapAddrOffset_drawPos));
+}
+
+int getStringIsPlaying(int stringIndex) {
+    return getHeapInt(stringDrawStateAddr(stringIndex, g_stringDrawState_heapAddrOffset_isPlaying));
+}
+
+void setStringIsDown(int stringIndex, int value) {
+    setHeapInt(stringDrawStateAddr(stringIndex, g_stringDrawState_heapAddrOffset_isDown), value);
+}
+
+void setStringDrawPos(int stringIndex, int value) {
+    setHeapInt(stringDrawStateAddr(stringIndex, g_stringDrawState_heapAddrOffset_drawPos), value);
+}
+
+void setStringIsPlaying(int stringIndex, int value) {
+    setHeapInt(stringDrawStateAddr(stringIndex, g_stringDrawState_heapAddrOffset_isPlaying), value);
+}
+
+
+// effective touch position/id on each string (used only on main block)
+// index: string
+// fields: pos, touchIdChanged, byTouchId, prevTouchId
+int g_stringTouchState_heapAddr;
+int g_stringTouchState_numStrings;
+int g_stringTouchState_heapSizePerUnit;
+int g_stringTouchState_heapAddrOffset_pos;
+int g_stringTouchState_heapAddrOffset_touchIdChanged;
+int g_stringTouchState_heapAddrOffset_byTouchId;
+int g_stringTouchState_heapAddrOffset_prevTouchId;
+
+int stringTouchStateAddr(int stringIndex, int offset) {
+    int addrBase = g_stringTouchState_heapAddr;
+    addrBase += stringIndex * g_blockTouchState_heapSizePerUnit;
+    return addrBase + offset;
+}
+
+int getStringTouchPos(int stringIndex) {
+    return getHeapInt(stringTouchStateAddr(stringIndex, g_stringTouchState_heapAddrOffset_pos));
+}
+
+int getStringTouchIdChanged(int stringIndex) {
+    return getHeapInt(stringTouchStateAddr(stringIndex, g_stringTouchState_heapAddrOffset_touchIdChanged));
+}
+
+int getStringTouchByTouchId(int stringIndex) {
+    return getHeapInt(stringTouchStateAddr(stringIndex, g_stringTouchState_heapAddrOffset_byTouchId));
+}
+
+int getStringTouchPrevTouchId(int stringIndex) {
+    return getHeapInt(stringTouchStateAddr(stringIndex, g_stringTouchState_heapAddrOffset_prevTouchId));
+}
+
+void setStringTouchPos(int stringIndex, int value) {
+    setHeapInt(stringTouchStateAddr(stringIndex, g_stringTouchState_heapAddrOffset_pos), value);
+}
+
+void setStringTouchIdChanged(int stringIndex, int value) {
+    setHeapInt(stringTouchStateAddr(stringIndex, g_stringTouchState_heapAddrOffset_touchIdChanged), value);
+}
+
+void setStringTouchByTouchId(int stringIndex, int value) {
+    setHeapInt(stringTouchStateAddr(stringIndex, g_stringTouchState_heapAddrOffset_byTouchId), value);
+}
+
+void setStringTouchPrevTouchId(int stringIndex, int value) {
+    setHeapInt(stringTouchStateAddr(stringIndex, g_stringTouchState_heapAddrOffset_prevTouchId), value);
+}
+
+// for sending MIDI notes (used only on main block)
+// index: touch_base_1_index
+// fields: midiNoteIsOn, midiNoteNum, midiNoteOnString, midiNoteLockPitchBend, midiNoteStartMicroTuning(float)
+int g_touchMidiNoteState_heapAddr;
+int g_touchMidiNoteState_numTouches;
+int g_touchMidiNoteState_heapSizePerUnit;
+int g_touchMidiNoteState_heapAddrOffset_midiNoteIsOn;
+int g_touchMidiNoteState_heapAddrOffset_midiNoteNum;
+int g_touchMidiNoteState_heapAddrOffset_midiNoteOnString;
+int g_touchMidiNoteState_heapAddrOffset_midiNoteLockPitchBend;
+int g_touchMidiNoteState_heapAddrOffset_midiNoteStartMicroTuningFloat;
+
+int stringTouchMidiNoteStateAddr(int touchIndex, int offset) {
+    int addrBase = g_touchMidiNoteState_heapAddr;
+    addrBase += (touchIndex-1) * g_touchMidiNoteState_heapSizePerUnit;
+    return addrBase + offset;
+}
+
+int getTouchMidiNoteIsOn(int touchIndex) {
+    return getHeapInt(stringTouchMidiNoteStateAddr(touchIndex, g_touchMidiNoteState_heapAddrOffset_midiNoteIsOn));
+}
+
+int getTouchMidiNoteNum(int touchIndex) {
+    return getHeapInt(stringTouchMidiNoteStateAddr(touchIndex, g_touchMidiNoteState_heapAddrOffset_midiNoteNum));
+}
+
+int getTouchMidiNoteOnString(int touchIndex) {
+    return getHeapInt(stringTouchMidiNoteStateAddr(touchIndex, g_touchMidiNoteState_heapAddrOffset_midiNoteOnString));
+}
+
+int getTouchMidiNoteLockPitchBend(int touchIndex) {
+    return getHeapInt(stringTouchMidiNoteStateAddr(touchIndex, g_touchMidiNoteState_heapAddrOffset_midiNoteLockPitchBend));
+}
+
+float getTouchMidiNoteStartMicroTuning(int touchIndex) {
+    return float(getHeapInt(stringTouchMidiNoteStateAddr(touchIndex, g_touchMidiNoteState_heapAddrOffset_midiNoteStartMicroTuningFloat))) / FLOAT_SCALE_TO_INT;
+}
+
+void setTouchMidiNoteIsOn(int touchIndex, int value) {
+    setHeapInt(stringTouchMidiNoteStateAddr(touchIndex, g_touchMidiNoteState_heapAddrOffset_midiNoteIsOn), value);
+}
+
+void setTouchMidiNoteNum(int touchIndex, int value) {
+    setHeapInt(stringTouchMidiNoteStateAddr(touchIndex, g_touchMidiNoteState_heapAddrOffset_midiNoteNum), value);
+}
+
+void setTouchMidiNoteOnString(int touchIndex, int value) {
+    setHeapInt(stringTouchMidiNoteStateAddr(touchIndex, g_touchMidiNoteState_heapAddrOffset_midiNoteOnString), value);
+}
+
+void setTouchMidiNoteLockPitchBend(int touchIndex, int value) {
+    setHeapInt(stringTouchMidiNoteStateAddr(touchIndex, g_touchMidiNoteState_heapAddrOffset_midiNoteLockPitchBend), value);
+}
+
+void setTouchMidiNoteStartMicroTuning(int touchIndex, float fvalue) {
+    int value = int(fvalue * FLOAT_SCALE_TO_INT);
+    setHeapInt(stringTouchMidiNoteStateAddr(touchIndex, g_touchMidiNoteState_heapAddrOffset_midiNoteStartMicroTuningFloat), value);
+}
+
+// block ID table (used only on main block)
+// index: blocks
+// fields: id
+int g_blockState_heapAddr;
+int g_blockState_numBlocks;
+int g_blockState_heapSizePerUnit;
+int g_blockState_heapAddrOffset_id;
+
+int blockStateAddr(int blockIndex, int offset) {
+    int addrBase = g_blockState_heapAddr;
+    addrBase += blockIndex * g_blockState_heapSizePerUnit;
+    return addrBase + offset;
+}
+
+int getBlockIdForIndex(int blockIndex)
+{
+    return getHeapInt(blockStateAddr(blockIndex, g_blockState_heapAddrOffset_id));
+}
+
+void setBlockIdForIndex(int blockIndex, int value)
+{
+    setHeapInt(blockStateAddr(blockIndex, g_blockState_heapAddrOffset_id), value);
+}
+
+// touch start position on each block
+// index: touches
+// fields: startX, startY
+int g_touchState_heapAddr;
+int g_touchState_numTouches;
+int g_touchState_heapSizePerUnit;
+int g_touchState_heapAddrOffset_startX;
+int g_touchState_heapAddrOffset_startY;
+
+int touchStateAddr(int touchIndex, int offset) {
+    int addrBase = g_touchState_heapAddr;
+    addrBase += (touchIndex-1) * g_touchState_heapSizePerUnit;
+    return addrBase + offset;
+}
+
+int getStartXForTouch(int touchIndex) {
+    return getHeapInt(stringTouchMidiNoteStateAddr(touchIndex, g_touchState_heapAddrOffset_startX));
+}
+
+int getStartYForTouch(int touchIndex) {
+    return getHeapInt(stringTouchMidiNoteStateAddr(touchIndex, g_touchState_heapAddrOffset_startY));
+}
+
+void setStartXForTouch(int touchIndex, int value) {
+    setHeapInt(stringTouchMidiNoteStateAddr(touchIndex, g_touchState_heapAddrOffset_startX), value);
+}
+
+void setStartYForTouch(int touchIndex, int value) {
+    setHeapInt(stringTouchMidiNoteStateAddr(touchIndex, g_touchState_heapAddrOffset_startY), value);
+}
+
+// global variables
+
+int g_masterBlockId;
+int g_distanceToMasterBlock;
+
+// CONSTANTS
+
+int MAX_NUM_BLOCKS;
+int MAX_FRETS;
+int NUM_TOUCHES;
+int FLOAT_SCALE_TO_INT;
+
+int MESSAGE_HELLO;
+int MESSAGE_ASSIGN_INDEX;
+int MESSAGE_TOUCH_START;
+int MESSAGE_TOUCH_MOVE;
+int MESSAGE_TOUCH_END;
+int MESSAGE_DRAW_STRING_POS;
+int MESSAGE_DRAW_STRING_PLAYING;
+
+
+void initialize_global_variables() {
+    g_masterBlockId = 0;
+    g_distanceToMasterBlock = -1;
+
+    // limited by heap size
+    MAX_NUM_BLOCKS = 3;
+    NUM_TOUCHES = 4;
+
+    FLOAT_SCALE_TO_INT = 20000;
+
+    MAX_FRETS = 24;
+
+    MESSAGE_HELLO           = 1000;
+    MESSAGE_ASSIGN_INDEX    = 1001;
+    MESSAGE_TOUCH_START     = 2000;
+    MESSAGE_TOUCH_MOVE      = 2100;
+    MESSAGE_TOUCH_END       = 2200;
+    MESSAGE_DRAW_STRING_POS = 3000;
+    MESSAGE_DRAW_STRING_PLAYING = 3001;
+
+    int heapAddr = 0;
+
+    g_blockState_heapAddr = heapAddr;
+    g_blockState_numBlocks = MAX_NUM_BLOCKS;
+    g_blockState_heapSizePerUnit = 4;
+    g_blockState_heapAddrOffset_id = 0;
+    heapAddr += g_blockState_numBlocks * g_blockState_heapSizePerUnit;
+
+    g_touchState_heapAddr = heapAddr;
+    g_touchState_numTouches = NUM_TOUCHES;
+    g_touchState_heapSizePerUnit = 8;
+    g_touchState_heapAddrOffset_startX = 0;
+    g_touchState_heapAddrOffset_startY = 4;
+    heapAddr += g_touchState_numTouches * g_touchState_heapSizePerUnit;
+
+    g_blockTouchState_heapAddr = heapAddr;
+    g_blockTouchState_numBlocks = MAX_NUM_BLOCKS;
+    g_blockTouchState_numTouches = NUM_TOUCHES;
+    g_blockTouchState_heapSizePerUnit = 16;
+    g_blockTouchState_heapAddrOffset_isDown = 0;
+    g_blockTouchState_heapAddrOffset_x = 4;
+    g_blockTouchState_heapAddrOffset_y = 8;
+    g_blockTouchState_heapAddrOffset_z = 12;
+    heapAddr += g_blockTouchState_numBlocks * g_blockTouchState_numTouches * g_blockTouchState_heapSizePerUnit;
+
+    g_stringDrawState_heapAddr = heapAddr;
+    g_stringDrawState_numStrings = conf_numStrings;
+    g_stringDrawState_heapSizePerUnit = 12;
+    g_stringDrawState_heapAddrOffset_isDown = 0;
+    g_stringDrawState_heapAddrOffset_drawPos = 4;
+    g_stringDrawState_heapAddrOffset_isPlaying = 8;
+    heapAddr += g_stringDrawState_numStrings * g_stringDrawState_heapSizePerUnit;
+
+    g_stringTouchState_heapAddr = 296;
+    g_stringTouchState_numStrings = conf_numStrings;
+    g_stringTouchState_heapSizePerUnit = 16;
+    g_stringTouchState_heapAddrOffset_pos = 0;
+    g_stringTouchState_heapAddrOffset_touchIdChanged = 4;
+    g_stringTouchState_heapAddrOffset_byTouchId = 8;
+    g_stringTouchState_heapAddrOffset_prevTouchId = 12;
+    heapAddr += g_stringTouchState_numStrings * g_stringTouchState_heapSizePerUnit;
+
+    g_touchMidiNoteState_heapAddr = 376;
+    g_touchMidiNoteState_numTouches = NUM_TOUCHES;
+    g_touchMidiNoteState_heapSizePerUnit = 20;
+    g_touchMidiNoteState_heapAddrOffset_midiNoteIsOn = 0;
+    g_touchMidiNoteState_heapAddrOffset_midiNoteNum = 4;
+    g_touchMidiNoteState_heapAddrOffset_midiNoteOnString = 8;
+    g_touchMidiNoteState_heapAddrOffset_midiNoteLockPitchBend = 12;
+    g_touchMidiNoteState_heapAddrOffset_midiNoteStartMicroTuningFloat = 16;
+    heapAddr += g_touchMidiNoteState_numTouches * g_touchMidiNoteState_heapSizePerUnit;
+
+    log(heapAddr);
+}
+
+void resetStringPos()
+{
+    for (int i=0; i<g_stringTouchState_numStrings; i++) {
+        setStringTouchPos(i, 0);
+        setStringTouchByTouchId(i, 0);
+    }
+}
+
+float getStringZoneMaxX(int stringIndex) {
+    if (conf_fatLowStrings && stringIndex >= 3) {
+        return 0.125 * (2 * 3 + 3 * (stringIndex-2)) + 0.125;
+    } else {
+        return 0.125 * (2 * (1+stringIndex)) + 0.0625;
+    }
+}
+void updateTouchForString(int blockIndex, int touchIndex, int x, int y, int z)
+{
+    int stringPos = (getNumBlocksInTopology() - blockIndex) * 2 * FLOAT_SCALE_TO_INT - y;
+    float floatX = float(x) / float(FLOAT_SCALE_TO_INT);
+    int touchId = blockIndex * 100 + touchIndex;
+    for (int i=0; i<g_stringTouchState_numStrings; i++) {
+        if (floatX < getStringZoneMaxX(i)) {
+            if (stringPos > getStringTouchPos(i)) {
+                setStringTouchPos(i, stringPos);
+                setStringTouchByTouchId(i, touchId);
+            }
+            break;
+        }
+    }
+}
+
+void printStringPos()
+{
+    for (int i=0; i<getNumBlocksInTopology(); i++) {
+        for (int j=0; j<g_stringTouchState_numStrings; j++) {
+            sendMessageToBlockOrSelf(getBlockIdForIndex(i), MESSAGE_DRAW_STRING_POS, j, getStringTouchPos(j));
+        }
+    }
+}
+
+float getWholeStringLength() {
+    // 1/8 cello string length: 495
+    // 1/4 cello string length: 535
+    // 1/2 cello string length: 600
+    // 3/4 cello string length: 635
+    // 4/4 cello string length: 695
+    return 535.0 * conf_scaleZoom;
+}
+
+float getStringPosFromMidiNoteOffset(float midiNoteOffset) {
+    float pow_2_of_24 = 1.029302236643492;
+    float modifier = 1.0;
+    for (float i=0; i<midiNoteOffset; i+=0.5) {
+        modifier *= pow_2_of_24;
+    }
+    float stringLenOffset = getWholeStringLength();
+    stringLenOffset -= getWholeStringLength() / modifier;
+    return 2 * FLOAT_SCALE_TO_INT * stringLenOffset / 94.0;
+}
+
+float getMidiNoteOffsetFromStringPos(int stringPos) {
+    // lightpad per block len: 94
+    // stringPos unit value per block: 2 * FLOAT_SCALE_TO_INT
+    float wholeStringLen = getWholeStringLength();
+    float pressedStringLen = wholeStringLen - 94.0 * (float(stringPos) / float(2 * FLOAT_SCALE_TO_INT));
+
+    float pow_2_of_24 = 1.029302236643492;
+    float baseStringLen = wholeStringLen;
+    float baseStep = 0.0;
+    while (baseStep < float(MAX_FRETS)) {
+        if ((baseStringLen / pow_2_of_24) < pressedStringLen) {
+            float segTotal = baseStringLen - baseStringLen / pow_2_of_24;
+            float segLen = baseStringLen - pressedStringLen;
+            return baseStep + 0.5 * segLen / segTotal;
+        }
+        baseStep+=0.5;
+        baseStringLen /= pow_2_of_24;
+    }
+    return baseStep;
+}
+
+int round(float val) {
+    return int(val+0.5);
+}
+
+float autoTuned(float microTuning) {
+    float temp = microTuning > 0 ? microTuning : microTuning - 0.5;
+    return float(round(temp*2))/2;
+}
+
+void sendNote(int action, int touchIndex, float x, float y, float z) {
+    if (touchIndex > 5) {
+        return;
+    }
+
+    for (int i=0; i<g_stringTouchState_numStrings; i++) {
+        int touchIdChanged = (getStringTouchByTouchId(i) != getStringTouchPrevTouchId(i)) ? 1 : 0;
+        setStringTouchIdChanged(i, touchIdChanged);
+    }
+
+    int channel = touchIndex;
+    int origMidiNoteIsOn = getTouchMidiNoteIsOn(touchIndex);
+    int origMidiNoteNum = getTouchMidiNoteNum(touchIndex);
+    int origStringIndex = getTouchMidiNoteOnString(touchIndex);
+    int origMidiNoteLockPitchBend = getTouchMidiNoteLockPitchBend(touchIndex);
+    float origMidiNoteStartMicroTuning = getTouchMidiNoteStartMicroTuning(touchIndex);
+
+    int baseMidiNum = 0;
+    float midiNumOffset = 0;
+    int stringIndex = 5;
+    for (int i=0; i<g_stringTouchState_numStrings; i++) {
+        if (x < getStringZoneMaxX(i)) {
+            baseMidiNum = 57 - 7 * i;
+            stringIndex = i;
+            midiNumOffset = getMidiNoteOffsetFromStringPos(getStringTouchPos(i));
+            break;
+        }
+    }
+    if (stringIndex >= g_stringTouchState_numStrings) {
+        return;
+    }
+
+    int midiNoteIsOn = (action != MESSAGE_TOUCH_END) ? 1 : 0;
+    int pressureValue = min(127, int(127 * (conf_pressureBoost + z * conf_pressureScale)));
+    int touchOrStringChanged = origStringIndex != stringIndex || getStringTouchIdChanged(stringIndex);
+
+    int midiNoteNum = 0;
+    if (midiNoteIsOn) {
+        if (origMidiNoteIsOn && !touchOrStringChanged) {
+            midiNoteNum = origMidiNoteNum;
+        } else {
+            midiNoteNum = (12 + baseMidiNum + round(midiNumOffset));
+        }
+    }
+    float midiNoteMicroTuning = midiNumOffset - float(midiNoteNum - baseMidiNum - 12);
+    if (midiNoteIsOn && !touchOrStringChanged) {
+        midiNoteMicroTuning = midiNumOffset - float(origMidiNoteNum - baseMidiNum - 12);
+    }
+    if (midiNoteIsOn == 0 || (touchOrStringChanged && origMidiNoteIsOn)) {
+        sendNoteOff(channel, origMidiNoteNum, 0);
+    }
+    if (origMidiNoteIsOn == 0 || (touchOrStringChanged && midiNoteIsOn)) {
+        sendNoteOn(channel, midiNoteNum, pressureValue);
+    }
+
+    // SWAM cello will receive pressure as aftertouch
+    sendChannelPressure(channel, pressureValue);
+
+    int slideValue = max(0, 64 + int((0.003 / getMaxYForBowingArea()) * ((y * FLOAT_SCALE_TO_INT) - getStartYForTouch(touchIndex))));
+    sendCC(channel, 74, min(127, slideValue));
+
+    int pitchBendValue = 8192;
+    int midiNoteLockPitchBend = origMidiNoteLockPitchBend;
+    float tuningDiff = midiNoteMicroTuning - origMidiNoteStartMicroTuning;
+    float tuningLimit = float(48);
+    float semitoneTuningLimit = 8192.0 / tuningLimit;
+    if (origMidiNoteNum == midiNoteNum) {
+        if (midiNoteLockPitchBend == 1 && abs(tuningDiff) >= conf_vibratoThreshold) {
+            midiNoteLockPitchBend = 0;
+        }
+        if (midiNoteLockPitchBend == 0) {
+            float tuningDiffToSemitoneAbove = midiNoteMicroTuning - autoTuned(origMidiNoteStartMicroTuning+0.5);
+        
+            float tuningDiffToSemitoneBelow = midiNoteMicroTuning - autoTuned(origMidiNoteStartMicroTuning-0.5);
+            if (origMidiNoteStartMicroTuning - autoTuned(origMidiNoteStartMicroTuning) < 0) {
+                tuningDiffToSemitoneAbove = midiNoteMicroTuning - autoTuned(origMidiNoteStartMicroTuning);
+            } else if (origMidiNoteStartMicroTuning - autoTuned(origMidiNoteStartMicroTuning) > 0) {
+                tuningDiffToSemitoneBelow = midiNoteMicroTuning - autoTuned(origMidiNoteStartMicroTuning);
+            }
+            float tuningDiffToAutotunedOrig = midiNoteMicroTuning - autoTuned(origMidiNoteStartMicroTuning);
+            if (tuningDiff > 0 && tuningDiff < tuningDiffToSemitoneAbove) {
+                pitchBendValue = 8192 + int(8192.0 / 4.0 * tuningDiffToSemitoneAbove / (0.5 - origMidiNoteStartMicroTuning));
+            } else if (tuningDiff > tuningDiffToSemitoneBelow && tuningDiff < 0) {
+                pitchBendValue = 8192 + int(8192.0 / 4.0 * tuningDiffToSemitoneBelow / (0.5 + origMidiNoteStartMicroTuning));
+            } else {
+                pitchBendValue = 8192 + int(tuningDiffToAutotunedOrig * semitoneTuningLimit);
+            }
+        }
+    }
+
+    if (midiNoteIsOn) {
+        sendPitchBend(channel, min(16383, pitchBendValue));
+    }
+
+    stringIndex = (midiNoteIsOn) ? stringIndex : 5;
+    setTouchMidiNoteIsOn(touchIndex, midiNoteIsOn);
+    setTouchMidiNoteNum(touchIndex, midiNoteNum);
+    setTouchMidiNoteOnString(touchIndex, stringIndex);
+    setTouchMidiNoteLockPitchBend(touchIndex, midiNoteLockPitchBend);
+    if (touchOrStringChanged && midiNoteIsOn == 1) {
+        setTouchMidiNoteLockPitchBend(touchIndex, (!touchOrStringChanged) ? 0 : 1);
+        setTouchMidiNoteStartMicroTuning(touchIndex, (!touchOrStringChanged) ? 0.0 : midiNoteMicroTuning);
+    }
+    updateStringPlayingState();
+
+    for (int i=0; i<g_stringTouchState_numStrings; i++) {
+        setStringTouchPrevTouchId(i, getStringTouchByTouchId(i));
+    }
+}
+
+void updateStringPlayingState() {
+    for (int i=0; i<g_stringTouchState_numStrings; i++) {
+        int isPlaying = 0;
+        for (int j=1; j<=NUM_TOUCHES; j++) {
+            if ((getTouchMidiNoteIsOn(j) && getTouchMidiNoteOnString(j) == i)) {
+                isPlaying = 1;
+                break;
+            }
+        }
+        for (int j=0; j<getNumBlocksInTopology(); j++) {
+            sendMessageToBlockOrSelf(getBlockIdForIndex(j), MESSAGE_DRAW_STRING_PLAYING, i, isPlaying);
+        }
+    }
+}
+
+void sendMessageToBlockOrSelf(int blockId, int data0, int data1, int data2) {
+    if (blockId == getBlockIDForIndex(0)) {
+        handleMessage(data0, data1, data2);
+    } else {
+        sendMessageToBlock(blockId, data0, data1, data2);
+    }
+}
+
+void initialise()
+{
+    initialize_global_variables();
+
+    for (int i=0; i<g_stringDrawState_numStrings; i++) {
+        setStringIsDown(i, 1);
+        setStringDrawPos(i, 0);
+    }
+
+    for (int i=0; i<g_stringTouchState_numStrings; i++) {
+        setStringIsPlaying(i, 0);
+    }
+
+    for (int i=1; i<=NUM_TOUCHES; i++) {
+        setTouchMidiNoteIsOn(i, 0);
+        setTouchMidiNoteNum(i, 0);
+        setTouchMidiNoteOnString(i, 10);
+    }
+
+    // number of blocks in topology
+    log(getNumBlocksInTopology());
+    // port towards master block, 0x8 means USB port (for LightPad), 0xFF means no master block
+    log(getPortToMaster());
+    // parent block towards master block in the topology)
+    log(getBlockIDOnPort(getPortToMaster()));
+    // self block ID
+    log(getBlockIDForIndex(0));
+    // report self block ID to parent block with counter 0
+
+    if (isMasterBlock()) {
+        g_distanceToMasterBlock = 0;
+        g_masterBlockId = getBlockIDForIndex(0);
+        setBlockIdForIndex(0, g_masterBlockId);
+    } else {
+        if (getPortToMaster() != 0xFF) {
+            sendMessageToBlock(getBlockIDOnPort(getPortToMaster()), MESSAGE_HELLO, getBlockIDForIndex(0), 1);
+        }
+    }
+}
+
+void repaint()
+{
+    clearDisplay();
+
+    if (g_distanceToMasterBlock < 0) {
+        return;
+    }
+
+    // draw nut
+    if (g_distanceToMasterBlock == getNumBlocksInTopology() - 1) {
+        fillRect(conf_nutColor, 0, 13, 15, 2);
+    }
+
+    // draw fret dots
+    for (int i=1; i<=MAX_FRETS; i++) {
+        int noteGridStringPos = round(getStringPosFromMidiNoteOffset(float(i)));
+        int posBlockIndex = getNumBlocksInTopology() - 1 - (noteGridStringPos / (2 * FLOAT_SCALE_TO_INT));
+        if (posBlockIndex == g_distanceToMasterBlock) {
+            int y = 15 * ((2 * FLOAT_SCALE_TO_INT) - (noteGridStringPos % (2 * FLOAT_SCALE_TO_INT))) / (2 * FLOAT_SCALE_TO_INT);
+            int len = 1;
+            int color = conf_fbDotColor1;
+            if (i == 2 || i == 4 || i == 5 || i == 7 || i == 9 || i == 12 ||
+                i == 14 || i == 17 || i == 19 || i == 21 || i == 24) {
+                color = conf_fbDotColor2;
+            } else {
+              continue;
+            }
+            if (i == 7 || i == 12 || i == 19) {
+                //len = 2;
+                color = conf_fbDotColor3;
+            }
+            fillRect(color, 0, y, len, 1);
+            fillRect(color, 15-len, y, len, 1);
+        }
+    }
+
+    // draw bowing area
+    if (g_distanceToMasterBlock == 0) {
+        fillRect(conf_bowingAreaColor, 0, 0, 15, int(15*getMaxYForBowingArea()/2.0));
+    }
+
+    // draw cello strings
+    int baseStringColor = blendARGB(conf_stringColor, makeARGB(192, 0, 0, 0));
+    for (int i=0; i<g_stringDrawState_numStrings; i++) {
+            int stringPosX = (conf_fatLowStrings && i >= 3) ? (7 + 3 * (i - 3)) : (1 + 2 * i);
+            int stringWidth = (conf_fatLowStrings && i >= 3) ? 2 : 1;
+        fillRect(baseStringColor, stringPosX, 0, stringWidth, 15);
+    }
+
+    // draw string pos
+    int stringColor = conf_stringColor;
+    int playingColor = conf_stringPlayingColor;
+    for (int i=0; i<g_stringDrawState_numStrings; i++) {
+        if (getStringIsDown(i) == 1) {
+            int y = int(15 * float((2 * FLOAT_SCALE_TO_INT) - getStringDrawPos(i)) / (2 * FLOAT_SCALE_TO_INT));
+            int stringPosX = (conf_fatLowStrings && i >= 3) ? (7 + 3 * (i - 3)) : (1 + 2 * i);
+            int stringWidth = (conf_fatLowStrings && i >= 3) ? 2 : 1;
+            fillRect(getStringIsPlaying(i) ? playingColor : stringColor, stringPosX, 0, stringWidth, y);
+        }
+    }
+
+    // draw pressure map
+    drawPressureMap();
+    fadePressureMap();
+}
+
+void handleButtonDown (int index)
+{
+
+}
+
+void handleButtonUp (int index)
+{
+
+}
+
+
+int encodeToData(float x, float y) {
+    int intX = int(x * FLOAT_SCALE_TO_INT);
+    int intY = int(y * FLOAT_SCALE_TO_INT);
+    return intX * 2 * FLOAT_SCALE_TO_INT + intY;
+}
+
+float getMaxYForBowingArea() {
+    if (getNumBlocksInTopology() >= 3) {
+        return 1.2;
+    }
+    return 0.4;
+}
+// touch events parameter range
+// x: from 0.07 to 1.93
+// y: from 0.07 to 1.93
+// z: from 0.0 to 1.0
+// vz: from 0.0 to 1.0
+
+void touchStart (int index, float x, float y, float z, float vz)
+{
+    setStartXForTouch(index, int(x * FLOAT_SCALE_TO_INT));
+    setStartYForTouch(index, int(y * FLOAT_SCALE_TO_INT));
+    if (g_distanceToMasterBlock == 0 && getStartYForTouch(index) < int(getMaxYForBowingArea() * FLOAT_SCALE_TO_INT)) {
+        addPressurePoint (conf_bowingFingerColor, x, y, z * 50);
+        sendNote(MESSAGE_TOUCH_START, index, x, y, z);
+        return;
+    }
+    addPressurePoint (conf_stringFingerColor, x, y, z * 10);
+    sendMessageToBlockOrSelf(g_masterBlockId,
+        MESSAGE_TOUCH_START + g_distanceToMasterBlock,
+        index,
+        encodeToData(x, y));
+}
+
+void touchMove (int index, float x, float y, float z, float vz)
+{
+    if (g_distanceToMasterBlock == 0 && getStartYForTouch(index) < int(getMaxYForBowingArea() * FLOAT_SCALE_TO_INT)) {
+        addPressurePoint (conf_bowingFingerColor, x, y, z * 50);
+        sendNote(MESSAGE_TOUCH_MOVE, index, x, y, z);
+        return;
+    }
+    addPressurePoint (conf_stringFingerColor, x, y, z * 10);
+    sendMessageToBlockOrSelf(g_masterBlockId,
+        MESSAGE_TOUCH_MOVE + g_distanceToMasterBlock,
+        index,
+        encodeToData(x, y));
+}
+
+void touchEnd (int index, float x, float y, float z, float vz)
+{
+    if (g_distanceToMasterBlock == 0 && getStartYForTouch(index) < int(getMaxYForBowingArea() * FLOAT_SCALE_TO_INT)) {
+        sendNote(MESSAGE_TOUCH_END, index, x, y, z);
+        return;
+    }
+    sendMessageToBlockOrSelf(g_masterBlockId,
+        MESSAGE_TOUCH_END + g_distanceToMasterBlock,
+        index,
+        encodeToData(x, y));
+    // XXX: send touch end again to avoid message dropped
+    sendMessageToBlockOrSelf(g_masterBlockId,
+        MESSAGE_TOUCH_END + g_distanceToMasterBlock,
+        index,
+        encodeToData(x, y));
+    // XXX: send touch end again to avoid message dropped
+    sendMessageToBlockOrSelf(g_masterBlockId,
+        MESSAGE_TOUCH_END + g_distanceToMasterBlock,
+        index,
+        encodeToData(x, y));
+}
+
+void handleMessage (int data0, int data1, int data2)
+{
+    int data0_type = data0 - (data0 % 100);
+    if (data0 == MESSAGE_HELLO) {
+        // data1: reporter block ID
+        // data2: block index (distance accumulated from tail block)
+        if (isMasterBlock()) {
+            setBlockIdForIndex(data2, data1);
+            // send master block ID and distance value (as index) back to reporter block
+            sendMessageToBlock(data1, MESSAGE_ASSIGN_INDEX, getBlockIDForIndex(0), data2);
+        } else {
+            // pass the message towards master block with distance value incremented
+            sendMessageToBlock(getBlockIDOnPort(getPortToMaster()), MESSAGE_HELLO, data1, data2+1);
+        }
+    } else if (data0 == MESSAGE_ASSIGN_INDEX) {
+        // data1: master block ID
+        // data2: self block index / distance value
+        g_masterBlockId = data1;
+        g_distanceToMasterBlock = data2;
+    } else if (data0_type == MESSAGE_TOUCH_START
+               || data0_type == MESSAGE_TOUCH_MOVE
+               || data0_type == MESSAGE_TOUCH_END) {
+        // data0: MESSAGE_TYPE (2000/2100/2200) + block index (0-99)
+        // data1: touch index
+        // data2: touchX * (2 * FLOAT_SCALE_TO_INT) + touchY
+        int block_index = data0 % 100;
+        int x = data2 / (2 * FLOAT_SCALE_TO_INT);
+        int y = data2 % (2 * FLOAT_SCALE_TO_INT);
+        setTouchForStringPos(block_index, data0_type, data1, x, y, FLOAT_SCALE_TO_INT);
+    } else if (data0 == MESSAGE_DRAW_STRING_POS) {
+        // data1: string index;
+        // data2: string pos;
+        int isDown = 0;
+        int drawPos = 0;
+        int posBlockIndex = getNumBlocksInTopology() - 1 - (data2 / (2 * FLOAT_SCALE_TO_INT));
+        if (posBlockIndex == g_distanceToMasterBlock) {
+            isDown = 1;
+            drawPos = data2 % (2 * FLOAT_SCALE_TO_INT);
+        } else if (posBlockIndex > g_distanceToMasterBlock) {
+            isDown = 1;
+            drawPos = 0;
+        }
+        setStringIsDown(data1, isDown);
+        setStringDrawPos(data1, drawPos);
+    } else if (data0 == MESSAGE_DRAW_STRING_PLAYING) {
+        // data1: string index
+        // data2: isPlaying value
+        setStringIsPlaying(data1, data2);
+    }
+}
+
+void setTouchForStringPos(int blockDistance, int action, int index, int x, int y, int z)
+{
+    if (action == MESSAGE_TOUCH_END) {
+        setBlockTouchIsDown(blockDistance, index, 0);
+    } else {
+        setBlockTouchIsDown(blockDistance, index, 1);
+        setBlockTouchX(blockDistance, index, x);
+        setBlockTouchY(blockDistance, index, y);
+        setBlockTouchZ(blockDistance, index, z);
+    }
+
+    updateStringPos();
+}
+
+void updateStringPos()
+{
+    resetStringPos();
+ 
+    for (int i=0; i<g_blockTouchState_numBlocks; i++) {
+        for (int j=1; j<=NUM_TOUCHES; j++) {
+            if (getBlockTouchIsDown(i, j) == 1) {
+                updateTouchForString(i, j,
+                    getBlockTouchX(i, j),
+                    getBlockTouchY(i, j),
+                    getBlockTouchZ(i, j));
+            }
+        }
+    }
+
+    printStringPos();
+}
